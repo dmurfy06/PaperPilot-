@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaperAnalysis } from '@/lib/types';
 import OpenAI from 'openai';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -111,23 +112,48 @@ glossary (5–12 terms):
 
 export async function POST(request: NextRequest) {
   try {
-    const { paperText } = await request.json();
+    // Verify auth
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    }
+
+    const { paperText, filename } = await request.json();
 
     if (!paperText || paperText.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Paper text is empty' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Paper text is empty' }, { status: 400 });
+    }
+
+    if (!filename) {
+      return NextResponse.json({ error: 'Filename is required' }, { status: 400 });
     }
 
     const analysis = await analyzePaperContent(paperText);
-    return NextResponse.json(analysis);
+
+    // Save to Supabase
+    const { data: saved, error: dbError } = await supabase
+      .from('papers')
+      .insert({ user_id: user.id, filename, analysis })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Failed to save paper to database:', dbError);
+      throw new Error('Analysis complete but failed to save. Check your Supabase table setup.');
+    }
+
+    // Return full Paper object matching the frontend type
+    return NextResponse.json({
+      id: saved.id,
+      filename: saved.filename,
+      analysis: saved.analysis,
+      uploadedAt: new Date(saved.uploaded_at).getTime(),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('Analysis error:', message);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

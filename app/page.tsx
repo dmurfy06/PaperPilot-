@@ -1,6 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase';
+import { AuthPage } from '@/components/AuthPage';
+import { Sidebar } from '@/components/Sidebar';
 import { PDFUpload } from '@/components/PDFUpload';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -14,137 +18,175 @@ import {
 import { NotesTab } from '@/components/NotesTab';
 import { useAppStore } from '@/lib/store';
 import { extractTextFromPDF } from '@/lib/pdf-extractor';
-import { savePaperToStorage, getPaperFromStorage, generateId } from '@/lib/storage';
-import { Paper, PaperAnalysis } from '@/lib/types';
-import { AlertCircle, Loader } from 'lucide-react';
+import { Paper } from '@/lib/types';
+import { AlertCircle, Loader, Upload } from 'lucide-react';
 
 export default function Home() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [papersLoading, setPapersLoading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const {
-    currentPaper,
-    notes,
-    setCurrentPaper,
-    addNote,
-    updateNote,
-    deleteNote,
-    loadNotesForPaper,
-    loadStoredData,
-    saveToStorage,
-  } = useAppStore();
+  const { currentPaper, setCurrentPaper, notes, addNote, updateNote, deleteNote, loadNotesForPaper } =
+    useAppStore();
 
+  const supabase = createClient();
+
+  // Listen to auth state changes
   useEffect(() => {
-    setIsMounted(true);
-    loadStoredData();
-    const storedPaper = getPaperFromStorage();
-    if (storedPaper) {
-      setCurrentPaper(storedPaper);
-      loadNotesForPaper(storedPaper.id);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load papers from Supabase when user is set
+  useEffect(() => {
+    if (!user) {
+      setPapers([]);
+      setCurrentPaper(null);
+      return;
     }
-  }, [loadStoredData, setCurrentPaper, loadNotesForPaper]);
+
+    setPapersLoading(true);
+    supabase
+      .from('papers')
+      .select('*')
+      .order('uploaded_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          const mapped: Paper[] = data.map((row) => ({
+            id: row.id,
+            filename: row.filename,
+            analysis: row.analysis,
+            uploadedAt: new Date(row.uploaded_at).getTime(),
+          }));
+          setPapers(mapped);
+          if (mapped.length > 0) {
+            setCurrentPaper(mapped[0]);
+            loadNotesForPaper(mapped[0].id);
+          } else {
+            setShowUpload(true);
+          }
+        }
+        setPapersLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setCurrentPaper(null);
+    setPapers([]);
+    setShowUpload(false);
+  };
+
+  const handleSelectPaper = (paper: Paper) => {
+    setCurrentPaper(paper);
+    setShowUpload(false);
+    setAnalyzeError(null);
+    loadNotesForPaper(paper.id);
+  };
+
+  const handleNewPaper = () => {
+    setShowUpload(true);
+    setCurrentPaper(null);
+    setAnalyzeError(null);
+    setSelectedFile(null);
+  };
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
-    setError(null);
+    setAnalyzeError(null);
     setIsAnalyzing(true);
 
     try {
-      const extractionResult = await extractTextFromPDF(file);
+      const extraction = await extractTextFromPDF(file);
 
-      if (!extractionResult.success) {
-        setError(extractionResult.error || 'Failed to extract PDF text');
-        setIsAnalyzing(false);
+      if (!extraction.success) {
+        setAnalyzeError(extraction.error || 'Failed to extract PDF text');
         return;
       }
 
-      const response = await fetch('/api/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperText: extractionResult.text }),
+        body: JSON.stringify({ paperText: extraction.text, filename: file.name }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to analyze paper');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Analysis failed');
       }
 
-      const analysis: PaperAnalysis = await response.json();
-
-      const newPaper: Paper = {
-        id: generateId(),
-        filename: file.name,
-        analysis,
-        uploadedAt: Date.now(),
-      };
-
-      setCurrentPaper(newPaper);
-      savePaperToStorage(newPaper);
-      loadNotesForPaper(newPaper.id);
-      saveToStorage();
+      const paper: Paper = await res.json();
+      setPapers((prev) => [paper, ...prev]);
+      setCurrentPaper(paper);
+      setShowUpload(false);
+      setSelectedFile(null);
+      loadNotesForPaper(paper.id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(message);
-      console.error('Analysis error:', err);
+      setAnalyzeError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleStartOver = () => {
-    setCurrentPaper(null);
-    setSelectedFile(null);
-    setError(null);
-    localStorage.removeItem('paperpilot_current_paper');
-  };
-
-  if (!isMounted) {
-    return null;
+  // Auth loading spinner
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader className="animate-spin text-blue-600" size={28} />
+      </div>
+    );
   }
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">PP</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 m-0">PaperPilot</h1>
-              <p className="text-xs text-slate-500 m-0">Understand research papers instantly</p>
-            </div>
-          </div>
-          {currentPaper && (
-            <button
-              onClick={handleStartOver}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              Start Over
-            </button>
-          )}
-        </div>
-      </div>
+  // Not logged in
+  if (!user) {
+    return <AuthPage />;
+  }
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!currentPaper ? (
-          <div className="space-y-8">
-            {/* Landing Page */}
-            <div className="text-center space-y-4 mb-12">
-              <h2 className="text-4xl font-bold text-slate-900">
-                Understand Research Papers Faster
-              </h2>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                Upload a PDF and get AI-powered analysis with plain English summaries, key findings,
-                methods, limitations, and a glossary of scientific terms.
+  const showingUpload = showUpload || (!currentPaper && !papersLoading);
+
+  return (
+    <div className="flex h-screen bg-slate-100 overflow-hidden">
+      <Sidebar
+        user={user}
+        papers={papers}
+        currentPaperId={currentPaper?.id ?? null}
+        loading={papersLoading}
+        onSelectPaper={handleSelectPaper}
+        onNewPaper={handleNewPaper}
+        onSignOut={handleSignOut}
+      />
+
+      <main className="flex-1 overflow-y-auto">
+        {showingUpload ? (
+          <div className="max-w-2xl mx-auto px-6 py-12">
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Upload size={26} className="text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Upload a Research Paper</h2>
+              <p className="text-slate-500 text-sm">
+                PDF must have selectable text — not a scanned image
               </p>
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-8 border border-slate-200">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
               <PDFUpload
                 onFileSelect={handleFileSelect}
                 isLoading={isAnalyzing}
@@ -152,79 +194,41 @@ export default function Home() {
               />
             </div>
 
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <div>
-                  <h3 className="font-semibold text-red-900">Error</h3>
-                  <p className="text-sm text-red-800">{error}</p>
-                </div>
+            {analyzeError && (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex gap-3">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-sm text-red-800">{analyzeError}</p>
               </div>
             )}
 
             {isAnalyzing && (
-              <div className="p-8 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                <div className="flex items-center justify-center gap-3 mb-3">
-                  <Loader className="animate-spin text-blue-600" size={24} />
-                  <p className="text-lg font-semibold text-blue-900">Analyzing your paper...</p>
+              <div className="mt-4 p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                <div className="flex items-center justify-center gap-3 mb-1">
+                  <Loader className="animate-spin text-blue-600" size={18} />
+                  <p className="font-semibold text-blue-900 text-sm">Analysing your paper...</p>
                 </div>
-                <p className="text-sm text-blue-700">
-                  This may take a minute. We're extracting text and generating insights with AI.
-                </p>
+                <p className="text-xs text-blue-700">Usually takes 15–30 seconds.</p>
               </div>
             )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="card">
-                <h3>📄 Upload</h3>
-                <p className="text-sm text-slate-600 m-0">
-                  Upload any PDF research paper in biology, chemistry, medicine, or related fields.
-                </p>
-              </div>
-              <div className="card">
-                <h3>🤖 Analyze</h3>
-                <p className="text-sm text-slate-600 m-0">
-                  Our AI analyzes the paper and creates student-friendly explanations.
-                </p>
-              </div>
-              <div className="card">
-                <h3>📝 Learn</h3>
-                <p className="text-sm text-slate-600 m-0">
-                  Take notes, save findings, and build your understanding with a glossary.
-                </p>
-              </div>
-            </div>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Paper Info */}
-            <div className="bg-white rounded-lg shadow p-4 border border-slate-200">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-1">
-                    {currentPaper.filename}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Analyzed on {new Date(currentPaper.uploadedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+        ) : currentPaper ? (
+          <div className="max-w-4xl mx-auto px-6 py-6">
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-slate-900 truncate">
+                {currentPaper.filename.replace(/\.pdf$/i, '')}
+              </h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Analysed{' '}
+                {new Date(currentPaper.uploadedAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </p>
             </div>
 
-            {/* Error Display */}
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <div>
-                  <h3 className="font-semibold text-red-900">Error</h3>
-                  <p className="text-sm text-red-800">{error}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Analysis Tabs */}
             <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsList className="w-full justify-start overflow-x-auto mb-4">
                 <TabsTrigger value="objective">Objective</TabsTrigger>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="findings">Findings</TabsTrigger>
@@ -234,31 +238,25 @@ export default function Home() {
                 <TabsTrigger value="notes">Notes</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="objective" className="mt-4">
+              <TabsContent value="objective">
                 <StudyObjectiveTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="summary" className="mt-4">
+              <TabsContent value="summary">
                 <SummaryTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="findings" className="mt-4">
+              <TabsContent value="findings">
                 <FindingsTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="methods" className="mt-4">
+              <TabsContent value="methods">
                 <MethodsTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="limitations" className="mt-4">
+              <TabsContent value="limitations">
                 <LimitationsTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="glossary" className="mt-4">
+              <TabsContent value="glossary">
                 <GlossaryTab analysis={currentPaper.analysis} />
               </TabsContent>
-
-              <TabsContent value="notes" className="mt-4">
+              <TabsContent value="notes">
                 <NotesTab
                   paperId={currentPaper.id}
                   notes={notes}
@@ -269,17 +267,8 @@ export default function Home() {
               </TabsContent>
             </Tabs>
           </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-slate-50 mt-12 py-6">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-600">
-          <p>
-            PaperPilot © 2026 • Built for students • Powered by OpenAI
-          </p>
-        </div>
-      </footer>
-    </main>
+        ) : null}
+      </main>
+    </div>
   );
 }
