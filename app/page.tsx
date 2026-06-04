@@ -151,7 +151,7 @@ export default function Home() {
   // Auth loading spinner
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <Loader className="animate-spin text-blue-600" size={28} />
       </div>
     );
@@ -165,7 +165,7 @@ export default function Home() {
   const showingUpload = showUpload || (!currentPaper && !papersLoading);
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
       <Sidebar
         user={user}
         papers={papers}
@@ -178,18 +178,20 @@ export default function Home() {
 
       <main className="flex-1 overflow-y-auto">
         {showingUpload ? (
-          <div className="max-w-2xl mx-auto px-6 py-12">
+          <div className="max-w-xl mx-auto px-6 py-16">
             <div className="text-center mb-8">
-              <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Upload size={26} className="text-blue-600" />
+              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <Upload size={24} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Upload a Research Paper</h2>
-              <p className="text-slate-500 text-sm">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+                Upload a Research Paper
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
                 PDF must have selectable text — not a scanned image
               </p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+            <div className="bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm p-6">
               <PDFUpload
                 onFileSelect={handleFileSelect}
                 isLoading={isAnalyzing}
@@ -198,29 +200,29 @@ export default function Home() {
             </div>
 
             {analyzeError && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                <p className="text-sm text-red-800">{analyzeError}</p>
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-2xl flex gap-3">
+                <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
+                <p className="text-sm text-red-800 dark:text-red-400">{analyzeError}</p>
               </div>
             )}
 
             {isAnalyzing && (
-              <div className="mt-4 p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                <div className="flex items-center justify-center gap-3 mb-1">
-                  <Loader className="animate-spin text-blue-600" size={18} />
-                  <p className="font-semibold text-blue-900 text-sm">Analysing your paper...</p>
+              <div className="mt-4 p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-center">
+                <div className="flex items-center justify-center gap-2.5 mb-1">
+                  <Loader className="animate-spin text-blue-600 dark:text-blue-400" size={16} />
+                  <p className="font-semibold text-blue-900 dark:text-blue-300 text-sm">Analysing your paper…</p>
                 </div>
-                <p className="text-xs text-blue-700">Usually takes 15–30 seconds.</p>
+                <p className="text-xs text-blue-600 dark:text-blue-500">Usually takes 15–30 seconds.</p>
               </div>
             )}
           </div>
         ) : currentPaper ? (
           <div className="max-w-4xl mx-auto px-6 py-6">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-slate-900 truncate">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate tracking-tight mb-0">
                 {currentPaper.filename.replace(/\.pdf$/i, '')}
               </h2>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                 Analysed{' '}
                 {new Date(currentPaper.uploadedAt).toLocaleDateString('en-GB', {
                   day: 'numeric',
