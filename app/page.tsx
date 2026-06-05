@@ -254,7 +254,10 @@ export default function Home() {
       // Upload PDF to Supabase Storage (best-effort; don't block analysis on failure)
       let pdfPath: string | undefined;
       if (user) {
-        const path = `${user.id}/${crypto.randomUUID()}.pdf`;
+        const uuid = typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const path = `${user.id}/${uuid}.pdf`;
         const { error: uploadError } = await supabase.storage
           .from('paper-pdfs')
           .upload(path, file, { contentType: 'application/pdf' });
