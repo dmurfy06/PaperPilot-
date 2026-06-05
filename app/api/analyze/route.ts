@@ -163,7 +163,10 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error('Failed to save paper to database:', dbError);
-      throw new Error('Analysis complete but failed to save. Check your Supabase table setup.');
+      return NextResponse.json(
+        { error: `Analysis complete but failed to save: ${dbError.message}` },
+        { status: 500 }
+      );
     }
 
     // Return full Paper object matching the frontend type
