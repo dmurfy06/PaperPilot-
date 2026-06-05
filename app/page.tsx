@@ -254,14 +254,16 @@ export default function Home() {
       // Upload PDF to Supabase Storage (best-effort; don't block analysis on failure)
       let pdfPath: string | undefined;
       if (user) {
-        try {
-          const path = `${user.id}/${crypto.randomUUID()}.pdf`;
-          const { error: uploadError } = await supabase.storage
-            .from('paper-pdfs')
-            .upload(path, file, { contentType: 'application/pdf' });
-          if (!uploadError) pdfPath = path;
-        } catch {
-          // Storage not set up or upload failed — proceed without PDF
+        const path = `${user.id}/${crypto.randomUUID()}.pdf`;
+        const { error: uploadError } = await supabase.storage
+          .from('paper-pdfs')
+          .upload(path, file, { contentType: 'application/pdf' });
+        if (uploadError) {
+          console.warn('PDF storage upload failed:', uploadError.message);
+          setAnalyzeError(`PDF storage failed: ${uploadError.message} — analysis will still run but the PDF viewer won't work.`);
+          setTimeout(() => setAnalyzeError(null), 8000);
+        } else {
+          pdfPath = path;
         }
       }
 
