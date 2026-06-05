@@ -58,6 +58,9 @@ export interface Note {
 export interface Paper {
   id: string;
   filename: string;
+  customName?: string;
+  pdfPath?: string;
+  pdfUrl?: string;
   analysis: PaperAnalysis;
   uploadedAt: number;
 }

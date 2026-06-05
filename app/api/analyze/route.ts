@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
 
-    const { paperText, filename } = await request.json();
+    const { paperText, filename, pdfPath } = await request.json();
 
     if (!paperText || paperText.trim().length === 0) {
       return NextResponse.json({ error: 'Paper text is empty' }, { status: 400 });
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     // Save to Supabase
     const { data: saved, error: dbError } = await supabase
       .from('papers')
-      .insert({ user_id: user.id, filename, analysis })
+      .insert({ user_id: user.id, filename, analysis, pdf_path: pdfPath ?? null })
       .select()
       .single();
 
@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: saved.id,
       filename: saved.filename,
+      pdfPath: saved.pdf_path ?? undefined,
       analysis: saved.analysis,
       uploadedAt: new Date(saved.uploaded_at).getTime(),
     });

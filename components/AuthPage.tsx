@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { LogoIcon } from '@/components/Logo';
 
 export function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -45,8 +46,8 @@ export function AuthPage() {
       <div className="relative w-full max-w-sm">
         {/* Logo mark */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-600/25 mb-4">
-            <span className="text-white font-bold text-lg tracking-tight">PP</span>
+          <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-600/25 mb-4">
+            <LogoIcon size={30} />
           </div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">PaperPilot</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Understand research instantly</p>

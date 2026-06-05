@@ -16,6 +16,29 @@
     font-family: var(--font-inter), system-ui, sans-serif;
   }
 
+  /* Themed scrollbars */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.55);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+  }
+
   h1 {
     @apply text-3xl font-bold tracking-tight text-slate-900 dark:text-white mb-4;
   }
@@ -26,6 +49,16 @@
 
   h3 {
     @apply text-base font-semibold text-slate-800 dark:text-slate-100 mb-2;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 

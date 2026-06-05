@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Plus, LogOut, FileText, Sun, Moon } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, Plus, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 import type { User } from '@supabase/supabase-js';
 import { Paper } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
@@ -14,6 +15,10 @@ interface SidebarProps {
   onSelectPaper: (paper: Paper) => void;
   onNewPaper: () => void;
   onSignOut: () => void;
+  onRenamePaper: (paperId: string, newName: string) => Promise<void>;
+  onDeletePaper: (paperId: string) => Promise<void>;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 function timeAgo(ts: number): string {
@@ -25,6 +30,49 @@ function timeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+function getPaperDisplayName(paper: Paper): string {
+  return paper.customName || paper.filename.replace(/\.pdf$/i, '');
+}
+
+function RenameInput({
+  paper,
+  onSave,
+  onCancel,
+}: {
+  paper: Paper;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(getPaperDisplayName(paper));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const commit = () => {
+    const trimmed = value.trim();
+    if (trimmed) onSave(trimmed);
+    else onCancel();
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      }}
+      onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      className="w-full bg-slate-700 text-white text-xs font-medium px-1.5 py-0.5 rounded outline-none ring-1 ring-blue-400 min-w-0"
+    />
+  );
+}
+
 export function Sidebar({
   user,
   papers,
@@ -33,23 +81,53 @@ export function Sidebar({
   onSelectPaper,
   onNewPaper,
   onSignOut,
+  onRenamePaper,
+  onDeletePaper,
+  mobileOpen = false,
+  onMobileClose,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { theme, toggle } = useTheme();
 
   const filtered = papers.filter((p) =>
-    p.filename.toLowerCase().includes(search.toLowerCase())
+    getPaperDisplayName(p).toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleRename = async (paperId: string, newName: string) => {
+    setRenamingId(null);
+    await onRenamePaper(paperId, newName);
+  };
+
+  const handleDelete = async (paperId: string) => {
+    setDeletingId(paperId);
+    setConfirmDeleteId(null);
+    await onDeletePaper(paperId);
+    setDeletingId(null);
+  };
+
   return (
-    <div className="w-64 flex-shrink-0 flex flex-col h-screen overflow-hidden bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-800/80">
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+    <div className={`w-64 flex-shrink-0 flex flex-col h-screen overflow-hidden bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-800/80 fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
       {/* Logo */}
-      <div className="px-4 pt-5 pb-4 flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/30">
-          <span className="text-white font-bold text-xs tracking-wide">PP</span>
-        </div>
-        <span className="font-semibold text-white tracking-tight text-sm">PaperPilot</span>
+      <div className="px-4 pt-5 pb-4 flex items-center justify-between">
+        <Logo wordmarkClass="text-white" />
+        <button
+          onClick={onMobileClose}
+          className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       {/* New Paper button */}
@@ -106,31 +184,93 @@ export function Sidebar({
           <div className="space-y-0.5">
             {filtered.map((paper) => {
               const active = paper.id === currentPaperId;
+              const isRenaming = renamingId === paper.id;
+              const isConfirmingDelete = confirmDeleteId === paper.id;
+              const isDeleting = deletingId === paper.id;
+
               return (
-                <button
-                  key={paper.id}
-                  onClick={() => onSelectPaper(paper)}
-                  className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors duration-100 group ${
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <FileText
-                      size={12}
-                      className={`mt-0.5 flex-shrink-0 ${active ? 'text-blue-200' : 'text-slate-600 group-hover:text-slate-400'}`}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium truncate leading-snug">
-                        {paper.filename.replace(/\.pdf$/i, '')}
-                      </p>
-                      <p className={`text-xs mt-0.5 ${active ? 'text-blue-200' : 'text-slate-600'}`}>
-                        {timeAgo(paper.uploadedAt)}
-                      </p>
+                <div key={paper.id}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (isRenaming || isConfirmingDelete) return;
+                      onSelectPaper(paper);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isRenaming && !isConfirmingDelete) onSelectPaper(paper);
+                    }}
+                    className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors duration-100 group cursor-pointer ${
+                      active
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    } ${isDeleting ? 'opacity-40 pointer-events-none' : ''}`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <FileText
+                        size={12}
+                        className={`mt-0.5 flex-shrink-0 ${active ? 'text-blue-200' : 'text-slate-600 group-hover:text-slate-400'}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        {isRenaming ? (
+                          <RenameInput
+                            paper={paper}
+                            onSave={(name) => handleRename(paper.id, name)}
+                            onCancel={() => setRenamingId(null)}
+                          />
+                        ) : (
+                          <p className="text-xs font-medium truncate leading-snug">
+                            {getPaperDisplayName(paper)}
+                          </p>
+                        )}
+                        <p className={`text-xs mt-0.5 ${active ? 'text-blue-200' : 'text-slate-600'}`}>
+                          {timeAgo(paper.uploadedAt)}
+                        </p>
+                      </div>
+                      {!isRenaming && (
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setRenamingId(paper.id); setConfirmDeleteId(null); }}
+                            title="Rename"
+                            className={`p-1 rounded ${active ? 'text-blue-200 hover:bg-blue-500' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'}`}
+                          >
+                            <Pencil size={10} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(paper.id); setRenamingId(null); }}
+                            title="Delete"
+                            className={`p-1 rounded ${active ? 'text-blue-200 hover:bg-blue-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'}`}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </button>
+
+                  {/* Inline delete confirm */}
+                  {isConfirmingDelete && (
+                    <div className="mx-1 mb-1 px-3 py-2 bg-red-950/60 border border-red-800/50 rounded-xl flex items-center justify-between gap-2">
+                      <p className="text-xs text-red-300">Delete this paper?</p>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleDelete(paper.id)}
+                          className="p-1 rounded text-red-300 hover:text-white hover:bg-red-700 transition-colors"
+                          title="Confirm delete"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+                          title="Cancel"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -139,7 +279,6 @@ export function Sidebar({
 
       {/* Footer: theme toggle + user + sign out */}
       <div className="px-3 py-3 border-t border-slate-800 space-y-2">
-        {/* Theme toggle */}
         <button
           onClick={toggle}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors duration-150 text-xs font-medium"
@@ -157,7 +296,6 @@ export function Sidebar({
           )}
         </button>
 
-        {/* User row */}
         <div className="flex items-center gap-2 px-1">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-semibold text-white">
@@ -175,5 +313,6 @@ export function Sidebar({
         </div>
       </div>
     </div>
+    </>
   );
 }
