@@ -25,7 +25,8 @@ import { AskTab } from '@/components/AskTab';
 import { useAppStore } from '@/lib/store';
 import { extractTextFromPDF } from '@/lib/pdf-extractor';
 import { Paper, Folder } from '@/lib/types';
-import { AlertCircle, Loader, Upload, PanelLeft, Menu } from 'lucide-react';
+import { AlertCircle, Loader, PanelLeft, Menu } from 'lucide-react';
+import { LogoIcon } from '@/components/Logo';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -40,6 +41,10 @@ export default function Home() {
   const [pdfPanelOpen, setPdfPanelOpen] = useState(false);
   const [pdfUrlLoading, setPdfUrlLoading] = useState(false);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  const [uploadCount, setUploadCount] = useState(0);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [uploadLimit, setUploadLimit] = useState(5);
+  const [questionLimit, setQuestionLimit] = useState(5);
 
   const { currentPaper, setCurrentPaper, notes, addNote, updateNote, deleteNote, loadNotesForPaper } =
     useAppStore();
@@ -68,6 +73,12 @@ export default function Home() {
     }
 
     setPapersLoading(true);
+    fetch('/api/usage').then((r) => r.json()).then((u) => {
+      if (u.uploadCount !== undefined) setUploadCount(u.uploadCount);
+      if (u.questionCount !== undefined) setQuestionCount(u.questionCount);
+      if (u.uploadLimit !== undefined) setUploadLimit(u.uploadLimit);
+      if (u.questionLimit !== undefined) setQuestionLimit(u.questionLimit);
+    }).catch(() => {});
     Promise.all([
       supabase.from('papers').select('*').order('uploaded_at', { ascending: false }),
       supabase.from('folders').select('*').order('created_at', { ascending: true }),
@@ -286,6 +297,7 @@ export default function Home() {
       setCurrentPaper(paper);
       setShowUpload(false);
       setSelectedFile(null);
+      setUploadCount((c) => c + 1);
       loadNotesForPaper(paper.id);
     } catch (err) {
       setAnalyzeError(err instanceof Error ? err.message : 'Unknown error');
@@ -296,8 +308,15 @@ export default function Home() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-        <Loader className="animate-spin text-blue-600" size={28} />
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-5 select-none">
+          <LogoIcon size={48} />
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-1 rounded-full bg-blue-400 animate-bounce [animation-delay:0ms]" />
+            <div className="w-1 h-1 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
+            <div className="w-1 h-1 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -340,13 +359,10 @@ export default function Home() {
               >
                 <Menu size={18} />
               </button>
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">PaperPilot</span>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scigestible</span>
             </div>
             <div className="max-w-xl mx-auto px-6 py-10 md:py-16 w-full">
               <div className="text-center mb-8">
-                <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                  <Upload size={24} className="text-blue-600 dark:text-blue-400" />
-                </div>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
                   Upload a Research Paper
                 </h2>
@@ -355,11 +371,13 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm p-6">
+              <div className="card">
                 <PDFUpload
                   onFileSelect={handleFileSelect}
                   isLoading={isAnalyzing}
                   currentFile={selectedFile}
+                  uploadsUsed={uploadCount}
+                  uploadLimit={uploadLimit}
                 />
               </div>
 
@@ -412,10 +430,10 @@ export default function Home() {
                   <button
                     onClick={handleTogglePdfPanel}
                     title={pdfPanelOpen ? 'Close PDF' : 'View PDF'}
-                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all duration-200 ${
                       pdfPanelOpen
-                        ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-500'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200'
+                        ? 'bg-gradient-to-r from-blue-500 to-violet-500 border-transparent text-white hover:from-blue-400 hover:to-violet-400 shadow-sm shadow-violet-500/20'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
                     <PanelLeft size={12} />
@@ -440,7 +458,7 @@ export default function Home() {
 
               <div className="flex-1 overflow-y-auto min-w-0 min-h-0">
                 <Tabs defaultValue="summary" className="w-full">
-                  <TabsList className="w-full justify-start overflow-x-auto scrollbar-none mb-4">
+                  <TabsList className="w-full justify-start overflow-x-auto scrollbar-none mb-1">
                     <TabsTrigger value="objective">Objective</TabsTrigger>
                     <TabsTrigger value="summary">Summary</TabsTrigger>
                     <TabsTrigger value="findings">Findings</TabsTrigger>
@@ -448,9 +466,12 @@ export default function Home() {
                     <TabsTrigger value="limitations">Limitations</TabsTrigger>
                     <TabsTrigger value="glossary">Glossary</TabsTrigger>
                     <TabsTrigger value="references">References</TabsTrigger>
-                    <TabsTrigger value="ask">Ask</TabsTrigger>
+                    <TabsTrigger value="ask">Ask AI</TabsTrigger>
                     <TabsTrigger value="notes">Notes</TabsTrigger>
                   </TabsList>
+                  <p className="text-xs text-slate-400 dark:text-slate-600 mb-4 px-0.5">
+                    AI-generated — always verify with the original paper
+                  </p>
 
                   <TabsContent value="objective">
                     <StudyObjectiveTab analysis={currentPaper.analysis} />
@@ -474,7 +495,12 @@ export default function Home() {
                     <CitationTab analysis={currentPaper.analysis} />
                   </TabsContent>
                   <TabsContent value="ask">
-                    <AskTab analysis={currentPaper.analysis} />
+                    <AskTab
+                      analysis={currentPaper.analysis}
+                      dailyQuestionsUsed={questionCount}
+                      dailyQuestionLimit={questionLimit}
+                      onQuestionSent={() => setQuestionCount((c) => c + 1)}
+                    />
                   </TabsContent>
                   <TabsContent value="notes">
                     <NotesTab

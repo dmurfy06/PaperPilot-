@@ -58,7 +58,7 @@ function buildExportText(paper: Paper): string {
     if (c.doi) lines.push(`DOI: ${c.doi}`);
   }
 
-  lines.push('', `Exported from PaperPilot`);
+  lines.push('', `Exported from Scigestible`);
   return lines.join('\n');
 }
 

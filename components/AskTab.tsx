@@ -9,9 +9,14 @@ interface Message {
   text: string;
 }
 
-const SESSION_LIMIT = 10;
+interface AskTabProps {
+  analysis: PaperAnalysis;
+  dailyQuestionsUsed: number;
+  dailyQuestionLimit: number;
+  onQuestionSent: () => void;
+}
 
-export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
+export function AskTab({ analysis, dailyQuestionsUsed, dailyQuestionLimit, onQuestionSent }: AskTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,8 +24,8 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const questionCount = messages.filter((m) => m.role === 'user').length;
-  const limitReached = questionCount >= SESSION_LIMIT;
+  const questionsLeft = dailyQuestionLimit - dailyQuestionsUsed;
+  const limitReached = dailyQuestionsUsed >= dailyQuestionLimit;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,6 +51,7 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
       if (!res.ok) throw new Error(data.error || 'Request failed');
 
       setMessages((prev) => [...prev, { role: 'assistant', text: data.answer }]);
+      onQuestionSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setMessages((prev) => prev.slice(0, -1));
@@ -71,9 +77,17 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
             Answers are based on this paper&apos;s analysis only — not general knowledge.
           </p>
         </div>
-        <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 mt-1">
-          {questionCount}/{SESSION_LIMIT} questions
-        </span>
+        <div className="text-right shrink-0 mt-1">
+          <span className={`text-xs font-medium tabular-nums ${
+            limitReached
+              ? 'text-red-500 dark:text-red-400'
+              : questionsLeft === 1
+              ? 'text-amber-600 dark:text-amber-400'
+              : 'text-slate-400 dark:text-slate-500'
+          }`}>
+            {dailyQuestionsUsed}/{dailyQuestionLimit} today
+          </span>
+        </div>
       </div>
 
       {/* Chat area */}
@@ -84,13 +98,18 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
             <p className="text-sm text-center">
               Ask anything about this paper — methods, findings, definitions…
             </p>
+            {!limitReached && (
+              <p className="text-xs mt-2 text-slate-400 dark:text-slate-600">
+                {questionsLeft} question{questionsLeft !== 1 ? 's' : ''} remaining today
+              </p>
+            )}
           </div>
         )}
 
         {messages.map((msg, i) =>
           msg.role === 'user' ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-blue-600 text-white text-sm leading-relaxed">
+              <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-blue-500 to-violet-500 text-white text-sm leading-relaxed">
                 {msg.text}
               </div>
             </div>
@@ -125,7 +144,7 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
       {limitReached ? (
         <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle size={15} className="flex-shrink-0" />
-          Session limit reached ({SESSION_LIMIT} questions). Reload the page to start a new session.
+          Daily question limit reached ({dailyQuestionLimit}/day). Your limit resets at midnight.
         </div>
       ) : (
         <div className="flex items-end gap-2">
@@ -142,7 +161,7 @@ export function AskTab({ analysis }: { analysis: PaperAnalysis }) {
           <button
             onClick={handleSend}
             disabled={!input.trim() || loading}
-            className="flex items-center justify-center w-10 h-10 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            className="flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 active:from-blue-600 active:to-violet-600 text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 shadow-md shadow-violet-500/20"
             title="Send (Enter)"
           >
             <Send size={16} />

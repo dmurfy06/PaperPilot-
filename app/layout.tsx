@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'PaperPilot - Understand Research Papers Quickly',
+  title: 'Scigestible - Understand Research Papers Quickly',
   description:
     'AI-powered research paper analysis for students. Get summaries, findings, and key concepts from scientific papers instantly.',
 };

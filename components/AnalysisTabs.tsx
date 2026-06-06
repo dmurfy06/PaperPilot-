@@ -40,7 +40,7 @@ export function FindingsTab({ analysis }: { analysis: PaperAnalysis }) {
       <ul className="space-y-3">
         {analysis.keyFindings.map((finding, index) => (
           <li key={index} className="flex gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-100 dark:border-slate-700/60">
-            <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
               {index + 1}
             </span>
             <span className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{finding.text}</span>

@@ -132,6 +132,8 @@ citationData:
   }
 }
 
+const UPLOAD_LIMIT = 5;
+
 export async function POST(request: NextRequest) {
   try {
     // Verify auth
@@ -140,6 +142,22 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    }
+
+    // Check daily upload limit
+    const today = new Date().toISOString().split('T')[0];
+    const { data: usage } = await supabase
+      .from('daily_usage')
+      .select('upload_count, question_count')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .maybeSingle();
+
+    if ((usage?.upload_count ?? 0) >= UPLOAD_LIMIT) {
+      return NextResponse.json(
+        { error: `Daily upload limit reached (${UPLOAD_LIMIT}/day). Your limit resets at midnight.` },
+        { status: 429 }
+      );
     }
 
     const { paperText, filename, pdfPath } = await request.json();
@@ -168,6 +186,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Increment daily upload count
+    await supabase.from('daily_usage').upsert({
+      user_id: user.id,
+      date: today,
+      upload_count: (usage?.upload_count ?? 0) + 1,
+      question_count: usage?.question_count ?? 0,
+    }, { onConflict: 'user_id,date' });
 
     // Return full Paper object matching the frontend type
     return NextResponse.json({

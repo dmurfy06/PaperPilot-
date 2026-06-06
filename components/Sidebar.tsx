@@ -84,7 +84,7 @@ function InlineInput({
       }}
       onBlur={commit}
       onClick={(e) => e.stopPropagation()}
-      className={`bg-slate-700 text-white text-xs font-medium px-1.5 py-0.5 rounded outline-none ring-1 ring-blue-400 ${className}`}
+      className={`bg-white/10 text-white text-xs font-medium px-1.5 py-0.5 rounded outline-none ring-1 ring-blue-400/60 ${className}`}
     />
   );
 }
@@ -174,16 +174,16 @@ export function Sidebar({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !isRenaming && !isConfirmingDelete) onSelectPaper(paper);
           }}
-          className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors duration-100 group cursor-pointer ${
+          className={`w-full text-left rounded-xl px-3 py-2.5 transition-all duration-150 group cursor-pointer ${
             active
-              ? 'bg-blue-600 text-white'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              ? 'bg-white/[0.08] text-slate-100'
+              : 'text-slate-500 hover:bg-white/[0.05] hover:text-slate-300'
           } ${isDeleting ? 'opacity-40 pointer-events-none' : ''}`}
         >
           <div className="flex items-start gap-2.5">
             <FileText
               size={12}
-              className={`mt-0.5 flex-shrink-0 ${active ? 'text-blue-200' : 'text-slate-600 group-hover:text-slate-400'}`}
+              className={`mt-0.5 flex-shrink-0 ${active ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'}`}
             />
             <div className="min-w-0 flex-1">
               {isRenaming ? (
@@ -198,7 +198,7 @@ export function Sidebar({
                   {getPaperDisplayName(paper)}
                 </p>
               )}
-              <p className={`text-xs mt-0.5 ${active ? 'text-blue-200' : 'text-slate-600'}`}>
+              <p className={`text-xs mt-0.5 ${active ? 'text-slate-500' : 'text-slate-600'}`}>
                 {timeAgo(paper.uploadedAt)}
               </p>
             </div>
@@ -207,21 +207,21 @@ export function Sidebar({
                 <button
                   onClick={(e) => { e.stopPropagation(); setRenamingId(paper.id); setConfirmDeleteId(null); setMoveMenuPaperId(null); }}
                   title="Rename"
-                  className={`p-1 rounded ${active ? 'text-blue-200 hover:bg-blue-500' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'}`}
+                  className={`p-1 rounded ${active ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-slate-300 hover:bg-white/5'}`}
                 >
                   <Pencil size={10} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setMoveMenuPaperId(isMoveOpen ? null : paper.id); setConfirmDeleteId(null); setRenamingId(null); }}
                   title="Move to folder"
-                  className={`p-1 rounded ${active ? 'text-blue-200 hover:bg-blue-500' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'}`}
+                  className={`p-1 rounded ${active ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-600 hover:text-slate-300 hover:bg-white/5'}`}
                 >
                   <FolderOpen size={10} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(paper.id); setRenamingId(null); setMoveMenuPaperId(null); }}
                   title="Delete"
-                  className={`p-1 rounded ${active ? 'text-blue-200 hover:bg-blue-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'}`}
+                  className={`p-1 rounded ${active ? 'text-slate-400 hover:text-red-300 hover:bg-red-500/10' : 'text-slate-600 hover:text-red-400 hover:bg-red-500/10'}`}
                 >
                   <Trash2 size={10} />
                 </button>
@@ -232,7 +232,7 @@ export function Sidebar({
 
         {/* Move to folder picker */}
         {isMoveOpen && (
-          <div className="mx-1 mb-1 px-2 py-1.5 bg-slate-800 border border-slate-700/60 rounded-xl">
+          <div className="mx-1 mb-1 px-2 py-1.5 bg-[#13131f] border border-white/[0.07] rounded-xl">
             <p className="text-xs text-slate-500 mb-1 px-1">Move to folder</p>
             {folders.map((f) => (
               <button
@@ -240,8 +240,8 @@ export function Sidebar({
                 onClick={() => { onMoveToFolder(paper.id, f.id); setMoveMenuPaperId(null); }}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
                   paper.folderId === f.id
-                    ? 'text-blue-400 bg-blue-950/40'
-                    : 'text-slate-300 hover:bg-slate-700'
+                    ? 'text-blue-400 bg-blue-500/10'
+                    : 'text-slate-400 hover:bg-white/[0.06]'
                 }`}
               >
                 <Folder size={10} className="flex-shrink-0" />
@@ -252,7 +252,7 @@ export function Sidebar({
             {paper.folderId && (
               <button
                 onClick={() => { onMoveToFolder(paper.id, null); setMoveMenuPaperId(null); }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-700 transition-colors mt-0.5"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-white/[0.06] transition-all duration-150 mt-0.5"
               >
                 <X size={10} className="flex-shrink-0" />
                 Remove from folder
@@ -297,18 +297,18 @@ export function Sidebar({
     <>
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
           onClick={onMobileClose}
         />
       )}
-      <div className={`w-64 flex-shrink-0 flex flex-col h-screen overflow-hidden bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-800/80 fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`w-64 flex-shrink-0 flex flex-col h-screen overflow-hidden bg-slate-950 border-r border-white/[0.06] fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* Logo */}
         <div className="px-4 pt-5 pb-4 flex items-center justify-between">
           <Logo wordmarkClass="text-white" />
           <button
             onClick={onMobileClose}
-            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-150"
           >
             <X size={16} />
           </button>
@@ -318,7 +318,7 @@ export function Sidebar({
         <div className="px-3 pb-3">
           <button
             onClick={onNewPaper}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-xl transition-colors duration-150 shadow-sm shadow-blue-600/20"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 active:from-blue-600 active:to-violet-600 text-white text-sm font-medium py-2.5 px-3 rounded-xl transition-all duration-200 shadow-md shadow-violet-500/20"
           >
             <Plus size={14} strokeWidth={2.5} />
             New Paper
@@ -337,7 +337,7 @@ export function Sidebar({
               placeholder="Search papers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-slate-800 dark:bg-slate-900 text-slate-200 text-sm pl-8 pr-3 py-2 rounded-lg placeholder-slate-600 border border-slate-700/60 focus:outline-none focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+              className="w-full bg-white/[0.05] text-slate-200 text-sm pl-8 pr-3 py-2 rounded-xl placeholder-slate-600 border border-white/[0.07] focus:outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 transition-all duration-150"
             />
           </div>
         </div>
@@ -347,9 +347,9 @@ export function Sidebar({
           {loading ? (
             <div className="space-y-1 px-1 pt-1">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-slate-800 rounded-xl p-3 animate-pulse">
-                  <div className="h-2.5 bg-slate-700 rounded w-4/5 mb-2" />
-                  <div className="h-2 bg-slate-700 rounded w-1/3" />
+                <div key={i} className="bg-white/[0.05] rounded-xl p-3 animate-pulse">
+                  <div className="h-2.5 bg-white/[0.07] rounded w-4/5 mb-2" />
+                  <div className="h-2 bg-white/[0.07] rounded w-1/3" />
                 </div>
               ))}
             </div>
@@ -384,7 +384,7 @@ export function Sidebar({
                     <div className="flex items-center gap-1 px-2 py-1 group/folder">
                       <button
                         onClick={() => toggleCollapse(folder.id)}
-                        className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+                        className="text-slate-600 hover:text-slate-400 transition-colors flex-shrink-0"
                       >
                         {isCollapsed
                           ? <ChevronRight size={12} />
@@ -407,14 +407,14 @@ export function Sidebar({
                             <button
                               onClick={() => { setRenamingFolderId(folder.id); setConfirmDeleteFolderId(null); }}
                               title="Rename folder"
-                              className="p-1 rounded text-slate-600 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+                              className="p-1 rounded text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-all duration-150"
                             >
                               <Pencil size={10} />
                             </button>
                             <button
                               onClick={() => { setConfirmDeleteFolderId(folder.id); setRenamingFolderId(null); }}
                               title="Delete folder"
-                              className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 transition-colors"
+                              className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
                             >
                               <Trash2 size={10} />
                             </button>
@@ -448,7 +448,7 @@ export function Sidebar({
 
                     {/* Papers inside folder */}
                     {!isCollapsed && (
-                      <div className="ml-3 space-y-0.5 border-l border-slate-800 pl-1">
+                      <div className="ml-3 space-y-0.5 border-l border-white/[0.06] pl-1">
                         {folderPapers.length === 0 ? (
                           <p className="text-xs text-slate-700 px-3 py-2">Empty folder</p>
                         ) : (
@@ -484,7 +484,7 @@ export function Sidebar({
         {/* New Folder row */}
         <div className="px-3 pb-2">
           {creatingFolder ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl border border-slate-700/60">
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.05] rounded-xl border border-white/[0.07]">
               <FolderPlus size={12} className="text-slate-500 flex-shrink-0" />
               <InlineInput
                 initialValue=""
@@ -497,7 +497,7 @@ export function Sidebar({
           ) : (
             <button
               onClick={() => setCreatingFolder(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 hover:text-slate-300 hover:bg-slate-800 transition-colors text-xs"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 hover:text-slate-400 hover:bg-white/5 transition-all duration-150 text-xs"
             >
               <FolderPlus size={13} className="flex-shrink-0" />
               New folder
@@ -506,10 +506,10 @@ export function Sidebar({
         </div>
 
         {/* Footer: theme toggle + user + sign out */}
-        <div className="px-3 py-3 border-t border-slate-800 space-y-2">
+        <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
           <button
             onClick={toggle}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors duration-150 text-xs font-medium"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-150 text-xs font-medium"
           >
             {theme === 'dark' ? (
               <>
@@ -525,7 +525,7 @@ export function Sidebar({
           </button>
 
           <div className="flex items-center gap-2 px-1">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0">
               <span className="text-xs font-semibold text-white">
                 {user.email?.[0]?.toUpperCase() ?? '?'}
               </span>
@@ -534,7 +534,7 @@ export function Sidebar({
             <button
               onClick={onSignOut}
               title="Sign out"
-              className="flex-shrink-0 p-1.5 text-slate-600 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
+              className="flex-shrink-0 p-1.5 text-slate-600 hover:text-slate-300 hover:bg-white/5 rounded-lg transition-all duration-150"
             >
               <LogOut size={13} />
             </button>
