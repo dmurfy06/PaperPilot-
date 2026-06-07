@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Plus, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X,
-  ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical, Sparkles,
+  ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical, Sparkles, Settings,
 } from 'lucide-react';
 import {
   DndContext,
@@ -49,6 +49,7 @@ interface SidebarProps {
   onDeleteFolder: (folderId: string) => Promise<void>;
   onMoveToFolder: (paperId: string, folderId: string | null) => Promise<void>;
   onUpgrade: () => void;
+  onOpenSettings: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -174,6 +175,7 @@ export function Sidebar({
   onDeleteFolder,
   onMoveToFolder,
   onUpgrade,
+  onOpenSettings,
   mobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
@@ -770,6 +772,13 @@ export function Sidebar({
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate flex-1 min-w-0">{user.email}</p>
+            <button
+              onClick={onOpenSettings}
+              title="Settings"
+              className="flex-shrink-0 p-1.5 text-slate-600 hover:text-slate-300 hover:bg-white/5 rounded-lg transition-all duration-150"
+            >
+              <Settings size={13} />
+            </button>
             <button
               onClick={onSignOut}
               title="Sign out"

@@ -11,6 +11,7 @@ import { PDFUpload } from '@/components/PDFUpload';
 import { PDFViewer } from '@/components/PDFViewer';
 import { ExportMenu } from '@/components/ExportMenu';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { SettingsModal } from '@/components/SettingsModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   StudyObjectiveTab,
@@ -53,6 +54,7 @@ export default function Home() {
   const [paperLimit, setPaperLimit] = useState<number | null>(10);
   const [upgradeModal, setUpgradeModal] = useState<UpgradeReason | null>(null);
   const [proSuccessBanner, setProSuccessBanner] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { currentPaper, setCurrentPaper, notes, addNote, updateNote, deleteNote, loadNotesForPaper } =
     useAppStore();
@@ -365,6 +367,18 @@ export default function Home() {
         <UpgradeModal reason={upgradeModal} onClose={() => setUpgradeModal(null)} />
       )}
 
+      {/* Settings modal */}
+      {settingsOpen && (
+        <SettingsModal
+          user={user}
+          isPro={isPro}
+          onClose={() => setSettingsOpen(false)}
+          onSignOut={handleSignOut}
+          onUpgrade={() => { setSettingsOpen(false); handleUpgrade('paper_limit'); }}
+          onAccountDeleted={handleSignOut}
+        />
+      )}
+
       {/* Pro success banner */}
       {proSuccessBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 bg-gradient-to-r from-blue-500 to-violet-500 text-white text-sm font-medium rounded-2xl shadow-xl shadow-violet-500/30 animate-in fade-in slide-in-from-top-2">
@@ -392,6 +406,7 @@ export default function Home() {
         onDeleteFolder={handleDeleteFolder}
         onMoveToFolder={handleMoveToFolder}
         onUpgrade={() => handleUpgrade('paper_limit')}
+        onOpenSettings={() => setSettingsOpen(true)}
         mobileOpen={sidebarMobileOpen}
         onMobileClose={() => setSidebarMobileOpen(false)}
       />
