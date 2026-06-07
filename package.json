@@ -24,6 +24,7 @@
     "pdfjs-dist": "^4.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "stripe": "^22.2.0",
     "tailwind-merge": "^2.2.0",
     "zustand": "^4.4.0"
   },

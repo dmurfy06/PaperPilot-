@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Plus, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X,
-  ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical,
+  ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical, Sparkles,
 } from 'lucide-react';
 import {
   DndContext,
@@ -36,6 +36,9 @@ interface SidebarProps {
   folders: FolderType[];
   currentPaperId: string | null;
   loading: boolean;
+  isPro: boolean;
+  paperCount: number;
+  paperLimit: number | null;
   onSelectPaper: (paper: Paper) => void;
   onNewPaper: () => void;
   onSignOut: () => void;
@@ -45,6 +48,7 @@ interface SidebarProps {
   onRenameFolder: (folderId: string, newName: string) => Promise<void>;
   onDeleteFolder: (folderId: string) => Promise<void>;
   onMoveToFolder: (paperId: string, folderId: string | null) => Promise<void>;
+  onUpgrade: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -157,6 +161,9 @@ export function Sidebar({
   folders,
   currentPaperId,
   loading,
+  isPro,
+  paperCount,
+  paperLimit,
   onSelectPaper,
   onNewPaper,
   onSignOut,
@@ -166,6 +173,7 @@ export function Sidebar({
   onRenameFolder,
   onDeleteFolder,
   onMoveToFolder,
+  onUpgrade,
   mobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
@@ -693,6 +701,51 @@ export function Sidebar({
         </div>
 
         <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
+          {/* Paper count indicator */}
+          {paperLimit !== null && (
+            <div className="px-3 py-2 rounded-xl bg-white/[0.04] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Papers</span>
+                <span className={`text-xs font-medium tabular-nums ${
+                  paperCount >= paperLimit ? 'text-red-400' : 'text-slate-400'
+                }`}>
+                  {paperCount}/{paperLimit}
+                </span>
+              </div>
+              <div className="h-1 rounded-full bg-white/[0.07] overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    paperCount >= paperLimit
+                      ? 'bg-red-500'
+                      : paperCount >= paperLimit * 0.8
+                      ? 'bg-amber-500'
+                      : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${Math.min((paperCount / paperLimit) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Upgrade to Pro button for free users */}
+          {!isPro && (
+            <button
+              onClick={onUpgrade}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-500/10 to-violet-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 hover:border-blue-400/30 transition-all duration-150 text-xs font-medium"
+            >
+              <Sparkles size={13} className="flex-shrink-0" />
+              <span className="flex-1 text-left">Upgrade to Pro</span>
+              <span className="text-blue-500/70">£5/mo</span>
+            </button>
+          )}
+
+          {isPro && (
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <Sparkles size={12} className="text-violet-400 flex-shrink-0" />
+              <span className="text-xs text-violet-400 font-medium">Pro plan</span>
+            </div>
+          )}
+
           <button
             onClick={toggle}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-150 text-xs font-medium"

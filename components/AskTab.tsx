@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Loader, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Send, Loader, MessageCircle, AlertTriangle, Sparkles } from 'lucide-react';
 import { PaperAnalysis } from '@/lib/types';
 
 interface Message {
@@ -13,10 +13,12 @@ interface AskTabProps {
   analysis: PaperAnalysis;
   dailyQuestionsUsed: number;
   dailyQuestionLimit: number;
+  isPro: boolean;
   onQuestionSent: () => void;
+  onUpgrade: () => void;
 }
 
-export function AskTab({ analysis, dailyQuestionsUsed, dailyQuestionLimit, onQuestionSent }: AskTabProps) {
+export function AskTab({ analysis, dailyQuestionsUsed, dailyQuestionLimit, isPro, onQuestionSent, onUpgrade }: AskTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -142,9 +144,20 @@ export function AskTab({ analysis, dailyQuestionsUsed, dailyQuestionLimit, onQue
       )}
 
       {limitReached ? (
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-sm text-amber-700 dark:text-amber-400">
-          <AlertTriangle size={15} className="flex-shrink-0" />
-          Daily question limit reached ({dailyQuestionLimit}/day). Your limit resets at midnight.
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle size={15} className="flex-shrink-0" />
+            Daily question limit reached ({dailyQuestionLimit}/day). Resets at midnight.
+          </div>
+          {!isPro && (
+            <button
+              onClick={onUpgrade}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white text-sm font-semibold py-2.5 px-4 rounded-2xl transition-all duration-200 shadow-md shadow-violet-500/20"
+            >
+              <Sparkles size={15} />
+              Upgrade to Pro — 50 questions/day
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex items-end gap-2">

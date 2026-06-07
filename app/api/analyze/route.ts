@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PaperAnalysis } from '@/lib/types';
 import OpenAI from 'openai';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { getUserLimits } from '@/lib/subscription';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -132,16 +133,30 @@ citationData:
   }
 }
 
-const UPLOAD_LIMIT = 5;
-
 export async function POST(request: NextRequest) {
   try {
-    // Verify auth
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    }
+
+    const limits = await getUserLimits(supabase, user.id);
+
+    // Check total paper count for free users
+    if (limits.paperLimit !== null) {
+      const { count } = await supabase
+        .from('papers')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if ((count ?? 0) >= limits.paperLimit) {
+        return NextResponse.json(
+          { error: `Paper limit reached (${limits.paperLimit} papers). Delete a paper to free up space, or upgrade to Pro for unlimited storage.`, code: 'PAPER_LIMIT' },
+          { status: 429 }
+        );
+      }
     }
 
     // Check daily upload limit
@@ -153,9 +168,9 @@ export async function POST(request: NextRequest) {
       .eq('date', today)
       .maybeSingle();
 
-    if ((usage?.upload_count ?? 0) >= UPLOAD_LIMIT) {
+    if ((usage?.upload_count ?? 0) >= limits.uploadLimit) {
       return NextResponse.json(
-        { error: `Daily upload limit reached (${UPLOAD_LIMIT}/day). Your limit resets at midnight.` },
+        { error: `Daily upload limit reached (${limits.uploadLimit}/day). Your limit resets at midnight.`, code: 'UPLOAD_LIMIT' },
         { status: 429 }
       );
     }
@@ -172,7 +187,6 @@ export async function POST(request: NextRequest) {
 
     const analysis = await analyzePaperContent(paperText);
 
-    // Save to Supabase
     const { data: saved, error: dbError } = await supabase
       .from('papers')
       .insert({ user_id: user.id, filename, analysis, pdf_path: pdfPath ?? null })
@@ -187,7 +201,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Increment daily upload count
     await supabase.from('daily_usage').upsert({
       user_id: user.id,
       date: today,
@@ -195,7 +208,6 @@ export async function POST(request: NextRequest) {
       question_count: usage?.question_count ?? 0,
     }, { onConflict: 'user_id,date' });
 
-    // Return full Paper object matching the frontend type
     return NextResponse.json({
       id: saved.id,
       filename: saved.filename,

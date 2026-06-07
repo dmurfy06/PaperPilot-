@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { PaperAnalysis } from '@/lib/types';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { getUserLimits } from '@/lib/subscription';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const QUESTION_LIMIT = 5;
 
 function buildContext(analysis: PaperAnalysis): string {
   const parts: string[] = [];
@@ -34,13 +33,14 @@ function buildContext(analysis: PaperAnalysis): string {
 
 export async function POST(req: Request) {
   try {
-    // Verify auth
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
+
+    const limits = await getUserLimits(supabase, user.id);
 
     // Check daily question limit
     const today = new Date().toISOString().split('T')[0];
@@ -51,9 +51,9 @@ export async function POST(req: Request) {
       .eq('date', today)
       .maybeSingle();
 
-    if ((usage?.question_count ?? 0) >= QUESTION_LIMIT) {
+    if ((usage?.question_count ?? 0) >= limits.questionLimit) {
       return NextResponse.json(
-        { error: `Daily question limit reached (${QUESTION_LIMIT}/day). Your limit resets at midnight.` },
+        { error: `Daily question limit reached (${limits.questionLimit}/day). Your limit resets at midnight.`, code: 'QUESTION_LIMIT' },
         { status: 429 }
       );
     }
@@ -86,7 +86,6 @@ export async function POST(req: Request) {
 
     const answer = completion.choices[0].message.content ?? 'No response generated.';
 
-    // Increment daily question count
     await supabase.from('daily_usage').upsert({
       user_id: user.id,
       date: today,

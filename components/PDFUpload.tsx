@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface PDFUploadProps {
   onFileSelect: (file: File) => void;
@@ -9,14 +9,30 @@ interface PDFUploadProps {
   currentFile?: File | null;
   uploadsUsed?: number;
   uploadLimit?: number;
+  paperCount?: number;
+  paperLimit?: number | null;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 }
 
-export function PDFUpload({ onFileSelect, isLoading = false, currentFile, uploadsUsed, uploadLimit }: PDFUploadProps) {
+export function PDFUpload({
+  onFileSelect,
+  isLoading = false,
+  currentFile,
+  uploadsUsed,
+  uploadLimit,
+  paperCount,
+  paperLimit,
+  isPro = false,
+  onUpgrade,
+}: PDFUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const limitReached = uploadLimit !== undefined && uploadsUsed !== undefined && uploadsUsed >= uploadLimit;
+  const uploadLimitReached = uploadLimit !== undefined && uploadsUsed !== undefined && uploadsUsed >= uploadLimit;
   const uploadsLeft = uploadLimit !== undefined && uploadsUsed !== undefined ? uploadLimit - uploadsUsed : undefined;
+  const paperLimitReached = paperLimit !== null && paperLimit !== undefined && paperCount !== undefined && paperCount >= paperLimit;
+  const limitReached = uploadLimitReached || paperLimitReached;
 
   const validateFile = (file: File): boolean => {
     if (file.type !== 'application/pdf') {
@@ -45,18 +61,18 @@ export function PDFUpload({ onFileSelect, isLoading = false, currentFile, upload
 
   return (
     <div className="w-full">
-      {/* Usage indicator */}
-      {uploadLimit !== undefined && uploadsUsed !== undefined && (
+      {/* Upload usage indicator */}
+      {uploadLimit !== undefined && uploadsUsed !== undefined && !paperLimitReached && (
         <div className={`flex items-center justify-between mb-3 px-1 text-xs ${
-          limitReached
+          uploadLimitReached
             ? 'text-red-500 dark:text-red-400'
             : uploadsLeft === 1
             ? 'text-amber-600 dark:text-amber-400'
             : 'text-slate-400 dark:text-slate-500'
         }`}>
           <span className="flex items-center gap-1.5">
-            {limitReached && <AlertTriangle size={12} className="flex-shrink-0" />}
-            {limitReached
+            {uploadLimitReached && <AlertTriangle size={12} className="flex-shrink-0" />}
+            {uploadLimitReached
               ? 'Daily upload limit reached — resets at midnight'
               : `${uploadsLeft} of ${uploadLimit} uploads remaining today`}
           </span>
@@ -66,7 +82,31 @@ export function PDFUpload({ onFileSelect, isLoading = false, currentFile, upload
         </div>
       )}
 
-      {limitReached ? (
+      {/* Paper limit reached */}
+      {paperLimitReached ? (
+        <div className="border-2 border-dashed border-violet-200 dark:border-violet-800/60 rounded-2xl px-8 py-10 text-center bg-violet-50/50 dark:bg-violet-950/20 select-none">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+              <Sparkles size={24} className="text-violet-500 dark:text-violet-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-violet-700 dark:text-violet-300 text-sm">Paper limit reached ({paperCount}/{paperLimit})</p>
+              <p className="text-violet-500 dark:text-violet-400 text-sm mt-0.5">
+                Delete a paper to free up space, or go Pro for unlimited.
+              </p>
+            </div>
+            {!isPro && onUpgrade && (
+              <button
+                onClick={onUpgrade}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all duration-200 shadow-md shadow-violet-500/20"
+              >
+                <Sparkles size={13} />
+                Upgrade to Pro — £5/month
+              </button>
+            )}
+          </div>
+        </div>
+      ) : uploadLimitReached ? (
         <div className="border-2 border-dashed border-red-200 dark:border-red-800/60 rounded-2xl px-8 py-12 text-center bg-red-50/50 dark:bg-red-950/20 select-none">
           <div className="flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
@@ -79,6 +119,15 @@ export function PDFUpload({ onFileSelect, isLoading = false, currentFile, upload
               </p>
             </div>
             <p className="text-xs text-red-400 dark:text-red-500">Your limit resets at midnight.</p>
+            {!isPro && onUpgrade && (
+              <button
+                onClick={onUpgrade}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all duration-200 shadow-md shadow-violet-500/20"
+              >
+                <Sparkles size={13} />
+                Upgrade to Pro — 50 uploads/day
+              </button>
+            )}
           </div>
         </div>
       ) : (

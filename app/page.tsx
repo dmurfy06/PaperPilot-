@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { PDFUpload } from '@/components/PDFUpload';
 import { PDFViewer } from '@/components/PDFViewer';
 import { ExportMenu } from '@/components/ExportMenu';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   StudyObjectiveTab,
@@ -25,8 +26,10 @@ import { AskTab } from '@/components/AskTab';
 import { useAppStore } from '@/lib/store';
 import { extractTextFromPDF } from '@/lib/pdf-extractor';
 import { Paper, Folder } from '@/lib/types';
-import { AlertCircle, Loader, PanelLeft, Menu } from 'lucide-react';
+import { AlertCircle, Loader, PanelLeft, Menu, Sparkles } from 'lucide-react';
 import { LogoIcon } from '@/components/Logo';
+
+type UpgradeReason = 'paper_limit' | 'upload_limit' | 'question_limit';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -44,7 +47,12 @@ export default function Home() {
   const [uploadCount, setUploadCount] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
   const [uploadLimit, setUploadLimit] = useState(5);
-  const [questionLimit, setQuestionLimit] = useState(5);
+  const [questionLimit, setQuestionLimit] = useState(3);
+  const [isPro, setIsPro] = useState(false);
+  const [paperCount, setPaperCount] = useState(0);
+  const [paperLimit, setPaperLimit] = useState<number | null>(10);
+  const [upgradeModal, setUpgradeModal] = useState<UpgradeReason | null>(null);
+  const [proSuccessBanner, setProSuccessBanner] = useState(false);
 
   const { currentPaper, setCurrentPaper, notes, addNote, updateNote, deleteNote, loadNotesForPaper } =
     useAppStore();
@@ -65,6 +73,16 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Show success banner when returning from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('pro') === '1') {
+      setProSuccessBanner(true);
+      window.history.replaceState({}, '', '/');
+      setTimeout(() => setProSuccessBanner(false), 6000);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       setPapers([]);
@@ -78,6 +96,9 @@ export default function Home() {
       if (u.questionCount !== undefined) setQuestionCount(u.questionCount);
       if (u.uploadLimit !== undefined) setUploadLimit(u.uploadLimit);
       if (u.questionLimit !== undefined) setQuestionLimit(u.questionLimit);
+      if (u.isPro !== undefined) setIsPro(u.isPro);
+      if (u.paperCount !== undefined) setPaperCount(u.paperCount);
+      if ('paperLimit' in u) setPaperLimit(u.paperLimit);
     }).catch(() => {});
     Promise.all([
       supabase.from('papers').select('*').order('uploaded_at', { ascending: false }),
@@ -156,6 +177,7 @@ export default function Home() {
   const handleDeletePaper = async (paperId: string) => {
     await fetch(`/api/papers/${paperId}`, { method: 'DELETE' });
     setPapers((prev) => prev.filter((p) => p.id !== paperId));
+    setPaperCount((c) => Math.max(0, c - 1));
     if (currentPaper?.id === paperId) {
       const remaining = papers.filter((p) => p.id !== paperId);
       if (remaining.length > 0) {
@@ -194,7 +216,6 @@ export default function Home() {
   const handleDeleteFolder = async (folderId: string) => {
     await fetch(`/api/folders/${folderId}`, { method: 'DELETE' });
     setFolders((prev) => prev.filter((f) => f.id !== folderId));
-    // Papers in the folder become uncategorized in local state
     setPapers((prev) => prev.map((p) => (p.folderId === folderId ? { ...p, folderId: undefined } : p)));
     if (currentPaper?.folderId === folderId) {
       setCurrentPaper({ ...currentPaper, folderId: undefined });
@@ -222,19 +243,16 @@ export default function Home() {
       return;
     }
 
-    // Already have a URL cached
     if (currentPaper.pdfUrl) {
       setPdfPanelOpen(true);
       return;
     }
 
-    // No PDF stored for this paper
     if (!currentPaper.pdfPath) {
       setPdfPanelOpen(true);
       return;
     }
 
-    // Fetch signed URL
     setPdfUrlLoading(true);
     setPdfPanelOpen(true);
     const { data } = await supabase.storage
@@ -250,6 +268,12 @@ export default function Home() {
   };
 
   const handleFileSelect = async (file: File) => {
+    // Client-side paper limit guard
+    if (paperLimit !== null && paperCount >= paperLimit) {
+      setUpgradeModal('paper_limit');
+      return;
+    }
+
     setSelectedFile(file);
     setAnalyzeError(null);
     setIsAnalyzing(true);
@@ -262,7 +286,6 @@ export default function Home() {
         return;
       }
 
-      // Upload PDF to Supabase Storage (best-effort; don't block analysis on failure)
       let pdfPath: string | undefined;
       if (user) {
         const uuid = typeof crypto.randomUUID === 'function'
@@ -289,11 +312,15 @@ export default function Home() {
 
       if (!res.ok) {
         const err = await res.json();
+        // Surface limit errors as upgrade modals
+        if (err.code === 'PAPER_LIMIT') { setUpgradeModal('paper_limit'); return; }
+        if (err.code === 'UPLOAD_LIMIT') { setUpgradeModal('upload_limit'); return; }
         throw new Error(err.error || 'Analysis failed');
       }
 
       const paper: Paper = await res.json();
       setPapers((prev) => [paper, ...prev]);
+      setPaperCount((c) => c + 1);
       setCurrentPaper(paper);
       setShowUpload(false);
       setSelectedFile(null);
@@ -304,6 +331,10 @@ export default function Home() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleUpgrade = (reason?: UpgradeReason) => {
+    setUpgradeModal(reason ?? 'paper_limit');
   };
 
   if (authLoading) {
@@ -329,12 +360,28 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden md:flex-row">
+      {/* Upgrade modal */}
+      {upgradeModal && (
+        <UpgradeModal reason={upgradeModal} onClose={() => setUpgradeModal(null)} />
+      )}
+
+      {/* Pro success banner */}
+      {proSuccessBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 bg-gradient-to-r from-blue-500 to-violet-500 text-white text-sm font-medium rounded-2xl shadow-xl shadow-violet-500/30 animate-in fade-in slide-in-from-top-2">
+          <Sparkles size={16} />
+          You&apos;re now on Pro — enjoy unlimited access!
+        </div>
+      )}
+
       <Sidebar
         user={user}
         papers={papers}
         folders={folders}
         currentPaperId={currentPaper?.id ?? null}
         loading={papersLoading}
+        isPro={isPro}
+        paperCount={paperCount}
+        paperLimit={paperLimit}
         onSelectPaper={handleSelectPaper}
         onNewPaper={handleNewPaper}
         onSignOut={handleSignOut}
@@ -344,6 +391,7 @@ export default function Home() {
         onRenameFolder={handleRenameFolder}
         onDeleteFolder={handleDeleteFolder}
         onMoveToFolder={handleMoveToFolder}
+        onUpgrade={() => handleUpgrade('paper_limit')}
         mobileOpen={sidebarMobileOpen}
         onMobileClose={() => setSidebarMobileOpen(false)}
       />
@@ -378,6 +426,10 @@ export default function Home() {
                   currentFile={selectedFile}
                   uploadsUsed={uploadCount}
                   uploadLimit={uploadLimit}
+                  paperCount={paperCount}
+                  paperLimit={paperLimit}
+                  isPro={isPro}
+                  onUpgrade={() => handleUpgrade('paper_limit')}
                 />
               </div>
 
@@ -499,7 +551,9 @@ export default function Home() {
                       analysis={currentPaper.analysis}
                       dailyQuestionsUsed={questionCount}
                       dailyQuestionLimit={questionLimit}
+                      isPro={isPro}
                       onQuestionSent={() => setQuestionCount((c) => c + 1)}
+                      onUpgrade={() => handleUpgrade('question_limit')}
                     />
                   </TabsContent>
                   <TabsContent value="notes">
