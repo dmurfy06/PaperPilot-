@@ -144,8 +144,12 @@ export async function POST(request: NextRequest) {
 
     const limits = await getUserLimits(supabase, user.id);
 
-    // Check total paper count for free users
-    if (limits.paperLimit !== null) {
+    // When paperId is present we're digesting a paper that's already in the library,
+    // so it doesn't count against the storage limit (it's already stored).
+    const { paperText, filename, pdfPath, paperId } = await request.json();
+
+    // Check total paper count for free users — only for brand-new papers
+    if (!paperId && limits.paperLimit !== null) {
       const { count } = await supabase
         .from('papers')
         .select('id', { count: 'exact', head: true })
@@ -175,30 +179,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { paperText, filename, pdfPath } = await request.json();
-
     if (!paperText || paperText.trim().length === 0) {
       return NextResponse.json({ error: 'Paper text is empty' }, { status: 400 });
     }
 
-    if (!filename) {
+    if (!paperId && !filename) {
       return NextResponse.json({ error: 'Filename is required' }, { status: 400 });
     }
 
     const analysis = await analyzePaperContent(paperText);
 
-    const { data: saved, error: dbError } = await supabase
-      .from('papers')
-      .insert({ user_id: user.id, filename, analysis, pdf_path: pdfPath ?? null })
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('Failed to save paper to database:', dbError);
-      return NextResponse.json(
-        { error: `Analysis complete but failed to save: ${dbError.message}` },
-        { status: 500 }
-      );
+    let saved;
+    if (paperId) {
+      // Digesting an existing library paper — update its analysis in place
+      const { data, error: dbError } = await supabase
+        .from('papers')
+        .update({ analysis })
+        .eq('id', paperId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+      if (dbError || !data) {
+        console.error('Failed to update paper analysis:', dbError);
+        return NextResponse.json(
+          { error: `Digest complete but failed to save: ${dbError?.message ?? 'paper not found'}` },
+          { status: 500 }
+        );
+      }
+      saved = data;
+    } else {
+      const { data, error: dbError } = await supabase
+        .from('papers')
+        .insert({ user_id: user.id, filename, analysis, pdf_path: pdfPath ?? null })
+        .select()
+        .single();
+      if (dbError) {
+        console.error('Failed to save paper to database:', dbError);
+        return NextResponse.json(
+          { error: `Digest complete but failed to save: ${dbError.message}` },
+          { status: 500 }
+        );
+      }
+      saved = data;
     }
 
     await supabase.from('daily_usage').upsert({
@@ -211,7 +233,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: saved.id,
       filename: saved.filename,
+      customName: saved.custom_name ?? undefined,
       pdfPath: saved.pdf_path ?? undefined,
+      folderId: saved.folder_id ?? undefined,
       analysis: saved.analysis,
       uploadedAt: new Date(saved.uploaded_at).getTime(),
     });

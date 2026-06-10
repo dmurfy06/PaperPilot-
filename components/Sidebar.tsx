@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Search, Plus, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X,
+  Search, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X,
   ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical, Sparkles, Settings, Info,
-  Upload, Brain, BookOpen, MessageSquare, Zap,
+  Globe, Library,
 } from 'lucide-react';
 import {
   DndContext,
@@ -31,17 +31,20 @@ import type { User } from '@supabase/supabase-js';
 import { Paper, Folder as FolderType } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
 
+export type SidebarView = 'digest' | 'search' | 'library';
+
 interface SidebarProps {
   user: User;
   papers: Paper[];
   folders: FolderType[];
   currentPaperId: string | null;
+  activeView: SidebarView;
+  onChangeView: (view: SidebarView) => void;
   loading: boolean;
   isPro: boolean;
   paperCount: number;
   paperLimit: number | null;
   onSelectPaper: (paper: Paper) => void;
-  onNewPaper: () => void;
   onSignOut: () => void;
   onRenamePaper: (paperId: string, newName: string) => Promise<void>;
   onDeletePaper: (paperId: string) => Promise<void>;
@@ -51,6 +54,7 @@ interface SidebarProps {
   onMoveToFolder: (paperId: string, folderId: string | null) => Promise<void>;
   onUpgrade: () => void;
   onOpenSettings: () => void;
+  onOpenAbout: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -162,12 +166,13 @@ export function Sidebar({
   papers,
   folders,
   currentPaperId,
+  activeView,
+  onChangeView,
   loading,
   isPro,
   paperCount,
   paperLimit,
   onSelectPaper,
-  onNewPaper,
   onSignOut,
   onRenamePaper,
   onDeletePaper,
@@ -177,6 +182,7 @@ export function Sidebar({
   onMoveToFolder,
   onUpgrade,
   onOpenSettings,
+  onOpenAbout,
   mobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
@@ -200,7 +206,6 @@ export function Sidebar({
   });
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
-  const [showAbout, setShowAbout] = useState(false);
 
   const { theme, toggle } = useTheme();
 
@@ -372,8 +377,14 @@ export function Sidebar({
                   {getPaperDisplayName(paper)}
                 </p>
               )}
-              <p className={`text-xs mt-0.5 ${active ? 'text-slate-500' : 'text-slate-600'}`}>
+              <p className={`text-xs mt-0.5 flex items-center gap-1.5 ${active ? 'text-slate-500' : 'text-slate-600'}`}>
                 {timeAgo(paper.uploadedAt)}
+                {!paper.analysis && (
+                  <span className="inline-flex items-center gap-0.5 text-amber-500/90">
+                    <span className="w-1 h-1 rounded-full bg-amber-500/90" />
+                    Not digested
+                  </span>
+                )}
               </p>
             </div>
             {!isRenaming && (
@@ -484,16 +495,32 @@ export function Sidebar({
           </button>
         </div>
 
+        {/* View tabs */}
         <div className="px-3 pb-3">
-          <button
-            onClick={onNewPaper}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 active:from-blue-600 active:to-violet-600 text-white text-sm font-medium py-2.5 px-3 rounded-xl transition-all duration-200 shadow-md shadow-violet-500/20"
-          >
-            <Plus size={14} strokeWidth={2.5} />
-            New Paper
-          </button>
+          <div className="grid grid-cols-3 gap-1 p-1 bg-white/[0.04] border border-white/[0.06] rounded-xl">
+            {([
+              { view: 'digest' as const, label: 'Digest', icon: <Sparkles size={13} /> },
+              { view: 'search' as const, label: 'Search', icon: <Globe size={13} /> },
+              { view: 'library' as const, label: 'Library', icon: <Library size={13} /> },
+            ]).map(({ view, label, icon }) => (
+              <button
+                key={view}
+                onClick={() => onChangeView(view)}
+                className={`flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-medium transition-all duration-150 ${
+                  activeView === view
+                    ? 'bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm shadow-violet-500/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]'
+                }`}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {activeView === 'library' ? (
+        <>
         <div className="px-3 pb-3">
           <div className="relative">
             <Search
@@ -703,6 +730,29 @@ export function Sidebar({
             </button>
           )}
         </div>
+        </>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-5 py-8 flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.05] flex items-center justify-center mb-4">
+              {activeView === 'digest' ? <Sparkles size={20} className="text-blue-400" /> : <Globe size={20} className="text-blue-400" />}
+            </div>
+            <p className="text-sm font-medium text-slate-300 mb-1.5">
+              {activeView === 'digest' ? 'Digest a paper' : 'Find papers online'}
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-5">
+              {activeView === 'digest'
+                ? 'Upload a PDF in the main panel to instantly digest (summarise) it into key findings, methods, and a glossary.'
+                : 'Search millions of research papers across 10 free databases in the main panel. Save the ones you want, then digest them whenever you like.'}
+            </p>
+            <button
+              onClick={() => onChangeView('library')}
+              className="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] px-3 py-2 rounded-xl transition-all duration-150"
+            >
+              <Library size={13} />
+              View your library ({papers.length})
+            </button>
+          </div>
+        )}
 
         <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
           {/* Paper count indicator */}
@@ -768,66 +818,12 @@ export function Sidebar({
           </button>
 
           <button
-            onClick={() => setShowAbout(true)}
+            onClick={onOpenAbout}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-150 text-xs font-medium"
           >
             <Info size={14} className="flex-shrink-0" />
             <span>About Scigestible</span>
           </button>
-
-          {showAbout && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setShowAbout(false)}>
-              <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-              <div
-                className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-slate-900 border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 p-7"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => setShowAbout(false)}
-                  className="absolute top-4 right-4 p-1.5 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg transition-all duration-150"
-                >
-                  <X size={15} />
-                </button>
-
-                <div className="flex items-center gap-2.5 mb-5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-                    <Brain size={14} className="text-white" />
-                  </div>
-                  <span className="text-base font-bold text-white">About Scigestible</span>
-                </div>
-
-                <p className="text-sm text-slate-400 leading-relaxed mb-6">
-                  Scigestible is an AI-powered research paper companion. Upload any academic PDF and get a structured, plain-English breakdown in seconds — no more struggling through dense jargon.
-                </p>
-
-                <div className="space-y-3 mb-6">
-                  {[
-                    { icon: <Zap size={13} />, title: 'Instant analysis', body: 'Full structured breakdown in 15–30 seconds after upload.' },
-                    { icon: <Brain size={13} />, title: 'AI summary', body: 'Objectives, key findings, methods, and limitations in plain English.' },
-                    { icon: <BookOpen size={13} />, title: 'Glossary & references', body: 'Technical terms defined, citations formatted automatically.' },
-                    { icon: <MessageSquare size={13} />, title: 'Ask questions', body: 'Chat with the paper to dig deeper into anything you don\'t understand.' },
-                    { icon: <Upload size={13} />, title: 'Works with any PDF', body: 'Google Scholar, PubMed, arXiv, or your university library — just needs selectable text.' },
-                  ].map(({ icon, title, body }) => (
-                    <div key={title} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center mt-0.5">
-                        {icon}
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-200">{title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{body}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-                  <p className="text-xs font-semibold text-slate-300 mb-2">Free plan includes</p>
-                  <p className="text-xs text-slate-500">10 saved papers · 5 uploads per day · 3 questions per day</p>
-                  <p className="text-xs text-slate-500 mt-1">Upgrade to Pro for unlimited access.</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center gap-2 px-1">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0">

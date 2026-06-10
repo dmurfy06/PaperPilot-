@@ -10,11 +10,12 @@ function buildExportText(paper: Paper): string {
     day: 'numeric', month: 'long', year: 'numeric',
   });
   const { analysis } = paper;
+  if (!analysis) return `${name}\n\nThis paper hasn't been digested yet.`;
   const divider = '─'.repeat(50);
 
   const lines: string[] = [
     name.toUpperCase(),
-    `Analysed: ${date}`,
+    `Digested: ${date}`,
     '',
     divider,
     'OBJECTIVES',

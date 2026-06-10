@@ -68,6 +68,7 @@ export interface Paper {
   pdfPath?: string;
   pdfUrl?: string;
   folderId?: string;
-  analysis: PaperAnalysis;
+  /** null when the paper is saved to the library but not yet digested (analysed) */
+  analysis: PaperAnalysis | null;
   uploadedAt: number;
 }

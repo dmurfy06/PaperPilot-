@@ -6,12 +6,14 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase';
 import { AuthPage } from '@/components/AuthPage';
-import { Sidebar } from '@/components/Sidebar';
+import { Sidebar, type SidebarView } from '@/components/Sidebar';
 import { PDFUpload } from '@/components/PDFUpload';
+import { PaperSearch } from '@/components/PaperSearch';
 import { PDFViewer } from '@/components/PDFViewer';
 import { ExportMenu } from '@/components/ExportMenu';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { SettingsModal } from '@/components/SettingsModal';
+import { AboutModal } from '@/components/AboutModal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   StudyObjectiveTab,
@@ -27,7 +29,7 @@ import { AskTab } from '@/components/AskTab';
 import { useAppStore } from '@/lib/store';
 import { extractTextFromPDF } from '@/lib/pdf-extractor';
 import { Paper, Folder } from '@/lib/types';
-import { AlertCircle, Loader, PanelLeft, Menu, Sparkles } from 'lucide-react';
+import { AlertCircle, Loader, PanelLeft, Menu, Sparkles, FileText, Library, BookOpen } from 'lucide-react';
 import { LogoIcon } from '@/components/Logo';
 
 type UpgradeReason = 'paper_limit' | 'upload_limit' | 'question_limit';
@@ -38,7 +40,7 @@ export default function Home() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [papersLoading, setPapersLoading] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
+  const [activeView, setActiveView] = useState<SidebarView>('library');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -55,6 +57,7 @@ export default function Home() {
   const [upgradeModal, setUpgradeModal] = useState<UpgradeReason | null>(null);
   const [proSuccessBanner, setProSuccessBanner] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const { currentPaper, setCurrentPaper, notes, addNote, updateNote, deleteNote, loadNotesForPaper } =
     useAppStore();
@@ -127,8 +130,9 @@ export default function Home() {
         if (mapped.length > 0) {
           setCurrentPaper(mapped[0]);
           loadNotesForPaper(mapped[0].id);
+          setActiveView('library');
         } else {
-          setShowUpload(true);
+          setActiveView('digest');
         }
       }
       setPapersLoading(false);
@@ -141,25 +145,27 @@ export default function Home() {
     setCurrentPaper(null);
     setPapers([]);
     setFolders([]);
-    setShowUpload(false);
+    setActiveView('library');
   };
 
   const handleSelectPaper = (paper: Paper) => {
     setCurrentPaper(paper);
-    setShowUpload(false);
+    setActiveView('library');
     setAnalyzeError(null);
     loadNotesForPaper(paper.id);
     setPdfPanelOpen(false);
     setSidebarMobileOpen(false);
   };
 
-  const handleNewPaper = () => {
-    setShowUpload(true);
-    setCurrentPaper(null);
+  const handleChangeView = (view: SidebarView) => {
+    setActiveView(view);
     setAnalyzeError(null);
-    setSelectedFile(null);
-    setPdfPanelOpen(false);
     setSidebarMobileOpen(false);
+    if (view !== 'library') {
+      setCurrentPaper(null);
+      setSelectedFile(null);
+      setPdfPanelOpen(false);
+    }
   };
 
   const handleRenamePaper = async (paperId: string, newName: string) => {
@@ -187,7 +193,7 @@ export default function Home() {
         loadNotesForPaper(remaining[0].id);
       } else {
         setCurrentPaper(null);
-        setShowUpload(true);
+        setActiveView('digest');
       }
       setPdfPanelOpen(false);
     }
@@ -269,11 +275,12 @@ export default function Home() {
     setPdfUrlLoading(false);
   };
 
-  const handleFileSelect = async (file: File) => {
+  // Returns an error message on failure, null on success (or when a limit modal was shown)
+  const handleFileSelect = async (file: File): Promise<string | null> => {
     // Client-side paper limit guard
     if (paperLimit !== null && paperCount >= paperLimit) {
       setUpgradeModal('paper_limit');
-      return;
+      return null;
     }
 
     setSelectedFile(file);
@@ -284,8 +291,9 @@ export default function Home() {
       const extraction = await extractTextFromPDF(file);
 
       if (!extraction.success) {
-        setAnalyzeError(extraction.error || 'Failed to extract PDF text');
-        return;
+        const msg = extraction.error || 'Failed to extract PDF text';
+        setAnalyzeError(msg);
+        return msg;
       }
 
       let pdfPath: string | undefined;
@@ -315,8 +323,8 @@ export default function Home() {
       if (!res.ok) {
         const err = await res.json();
         // Surface limit errors as upgrade modals
-        if (err.code === 'PAPER_LIMIT') { setUpgradeModal('paper_limit'); return; }
-        if (err.code === 'UPLOAD_LIMIT') { setUpgradeModal('upload_limit'); return; }
+        if (err.code === 'PAPER_LIMIT') { setUpgradeModal('paper_limit'); return null; }
+        if (err.code === 'UPLOAD_LIMIT') { setUpgradeModal('upload_limit'); return null; }
         throw new Error(err.error || 'Analysis failed');
       }
 
@@ -324,10 +332,110 @@ export default function Home() {
       setPapers((prev) => [paper, ...prev]);
       setPaperCount((c) => c + 1);
       setCurrentPaper(paper);
-      setShowUpload(false);
+      setActiveView('library');
       setSelectedFile(null);
       setUploadCount((c) => c + 1);
       loadNotesForPaper(paper.id);
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setAnalyzeError(msg);
+      return msg;
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Search → "Digest": download the PDF then digest it immediately
+  const handleImportFromSearch = async (file: File) => {
+    const error = await handleFileSelect(file);
+    if (error) throw new Error(error);
+  };
+
+  // Search → "Save to Library": store the PDF without digesting it
+  const handleSaveFromSearch = async (file: File) => {
+    if (paperLimit !== null && paperCount >= paperLimit) {
+      setUpgradeModal('paper_limit');
+      return;
+    }
+
+    // The whole point of saving is keeping the PDF, so storage must succeed
+    const uuid = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const path = `${user!.id}/${uuid}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from('paper-pdfs')
+      .upload(path, file, { contentType: 'application/pdf' });
+    if (uploadError) {
+      throw new Error(`Could not save the PDF: ${uploadError.message}`);
+    }
+
+    const res = await fetch('/api/papers/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, pdfPath: path }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (err.code === 'PAPER_LIMIT') { setUpgradeModal('paper_limit'); return; }
+      throw new Error(err.error || 'Failed to save paper');
+    }
+
+    const paper: Paper = await res.json();
+    setPapers((prev) => [paper, ...prev]);
+    setPaperCount((c) => c + 1);
+    setCurrentPaper(paper);
+    setActiveView('library');
+    loadNotesForPaper(paper.id);
+  };
+
+  // Library → digest a paper that was saved earlier without digesting
+  const handleDigestExisting = async (paper: Paper) => {
+    if (!paper.pdfPath) {
+      setAnalyzeError('This paper has no stored PDF, so it cannot be digested.');
+      return;
+    }
+
+    setAnalyzeError(null);
+    setIsAnalyzing(true);
+    try {
+      const { data } = await supabase.storage
+        .from('paper-pdfs')
+        .createSignedUrl(paper.pdfPath, 3600);
+      if (!data?.signedUrl) throw new Error('Could not load the stored PDF.');
+
+      const resp = await fetch(data.signedUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], paper.filename, { type: 'application/pdf' });
+
+      const extraction = await extractTextFromPDF(file);
+      if (!extraction.success) {
+        setAnalyzeError(extraction.error || 'Failed to extract PDF text');
+        return;
+      }
+
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paperText: extraction.text,
+          filename: paper.filename,
+          pdfPath: paper.pdfPath,
+          paperId: paper.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        if (err.code === 'UPLOAD_LIMIT') { setUpgradeModal('upload_limit'); return; }
+        throw new Error(err.error || 'Digest failed');
+      }
+
+      const updated: Paper = await res.json();
+      setPapers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setCurrentPaper(updated);
+      setUploadCount((c) => c + 1);
     } catch (err) {
       setAnalyzeError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -358,8 +466,6 @@ export default function Home() {
     return <AuthPage />;
   }
 
-  const showingUpload = showUpload || (!currentPaper && !papersLoading);
-
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden md:flex-row">
       {/* Upgrade modal */}
@@ -379,6 +485,9 @@ export default function Home() {
         />
       )}
 
+      {/* About modal */}
+      {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+
       {/* Pro success banner */}
       {proSuccessBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 bg-gradient-to-r from-blue-500 to-violet-500 text-white text-sm font-medium rounded-2xl shadow-xl shadow-violet-500/30 animate-in fade-in slide-in-from-top-2">
@@ -392,12 +501,13 @@ export default function Home() {
         papers={papers}
         folders={folders}
         currentPaperId={currentPaper?.id ?? null}
+        activeView={activeView}
+        onChangeView={handleChangeView}
         loading={papersLoading}
         isPro={isPro}
         paperCount={paperCount}
         paperLimit={paperLimit}
         onSelectPaper={handleSelectPaper}
-        onNewPaper={handleNewPaper}
         onSignOut={handleSignOut}
         onRenamePaper={handleRenamePaper}
         onDeletePaper={handleDeletePaper}
@@ -407,12 +517,27 @@ export default function Home() {
         onMoveToFolder={handleMoveToFolder}
         onUpgrade={() => handleUpgrade('paper_limit')}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAbout={() => { setAboutOpen(true); setSidebarMobileOpen(false); }}
         mobileOpen={sidebarMobileOpen}
         onMobileClose={() => setSidebarMobileOpen(false)}
       />
 
       <main className="flex-1 overflow-hidden flex flex-col min-w-0">
-        {showingUpload ? (
+        {activeView === 'search' ? (
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {/* Mobile top-bar */}
+            <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => setSidebarMobileOpen(true)}
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Menu size={18} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scigestible</span>
+            </div>
+            <PaperSearch onDigest={handleImportFromSearch} onSave={handleSaveFromSearch} isBusy={isAnalyzing} />
+          </div>
+        ) : activeView === 'digest' ? (
           <div className="flex-1 overflow-y-auto flex flex-col">
             {/* Mobile top-bar */}
             <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
@@ -427,10 +552,10 @@ export default function Home() {
             <div className="max-w-xl mx-auto px-6 py-10 md:py-16 w-full">
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-                  Upload a Research Paper
+                  Digest a Research Paper
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">
-                  PDF must have selectable text — not a scanned image
+                  Upload a PDF to digest (summarise) it — must have selectable text, not a scanned image
                 </p>
               </div>
 
@@ -459,14 +584,14 @@ export default function Home() {
                 <div className="mt-4 p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-center">
                   <div className="flex items-center justify-center gap-2.5 mb-1">
                     <Loader className="animate-spin text-blue-600 dark:text-blue-400" size={16} />
-                    <p className="font-semibold text-blue-900 dark:text-blue-300 text-sm">Analysing your paper…</p>
+                    <p className="font-semibold text-blue-900 dark:text-blue-300 text-sm">Digesting your paper…</p>
                   </div>
                   <p className="text-xs text-blue-600 dark:text-blue-500">Usually takes 15–30 seconds.</p>
                 </div>
               )}
             </div>
           </div>
-        ) : currentPaper ? (
+        ) : currentPaper && currentPaper.analysis ? (
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             {/* Header */}
             <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 flex-shrink-0">
@@ -484,7 +609,7 @@ export default function Home() {
                       {currentPaper.customName || currentPaper.filename.replace(/\.pdf$/i, '')}
                     </h2>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      Analysed{' '}
+                      Digested{' '}
                       {new Date(currentPaper.uploadedAt).toLocaleDateString('en-GB', {
                         day: 'numeric',
                         month: 'long',
@@ -584,7 +709,119 @@ export default function Home() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : currentPaper ? (
+          // Library paper that hasn't been digested yet
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {/* Mobile top-bar */}
+            <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => setSidebarMobileOpen(true)}
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Menu size={18} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scigestible</span>
+            </div>
+            <div className="max-w-lg mx-auto px-6 py-10 md:py-16 w-full">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-7 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mx-auto mb-4">
+                  <FileText size={24} className="text-amber-500 dark:text-amber-400" />
+                </div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-1.5">
+                  {currentPaper.customName || currentPaper.filename.replace(/\.pdf$/i, '')}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                  This paper is saved to your library but hasn&apos;t been digested yet. Digest it to get a
+                  plain-English summary, key findings, methods, glossary, and the ability to ask questions.
+                </p>
+
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => handleDigestExisting(currentPaper)}
+                    disabled={isAnalyzing}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white rounded-xl font-medium text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-violet-500/20"
+                  >
+                    {isAnalyzing ? (
+                      <><Loader size={14} className="animate-spin" /> Digesting…</>
+                    ) : (
+                      <><Sparkles size={14} /> Digest paper (summarise)</>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleTogglePdfPanel}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-sm transition-all duration-150"
+                  >
+                    <PanelLeft size={13} /> View PDF
+                  </button>
+                </div>
+
+                {isAnalyzing && (
+                  <p className="text-xs text-blue-600 dark:text-blue-500 mt-4">
+                    Reading the PDF and digesting — usually 15–30 seconds.
+                  </p>
+                )}
+                {analyzeError && (
+                  <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl flex gap-2 text-left">
+                    <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={15} />
+                    <p className="text-sm text-red-800 dark:text-red-400">{analyzeError}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Inline PDF viewer when toggled */}
+              {pdfPanelOpen && (
+                <div className="mt-4 h-[60vh] flex flex-col">
+                  <PDFViewer
+                    url={currentPaper.pdfUrl ?? null}
+                    isLoading={pdfUrlLoading}
+                    filename={currentPaper.customName || currentPaper.filename}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Library view with nothing selected
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {/* Mobile top-bar */}
+            <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => setSidebarMobileOpen(true)}
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Menu size={18} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scigestible</span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16 select-none">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-5">
+                <Library size={28} className="text-slate-400 dark:text-slate-500" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-1.5">
+                {papers.length > 0 ? 'Your library' : 'Your library is empty'}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-6">
+                {papers.length > 0
+                  ? 'Select a paper from the sidebar to read its digest, or add a new one.'
+                  : 'Digest a PDF you have, or search millions of papers online and save the ones you want.'}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleChangeView('digest')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-400 hover:to-violet-400 text-white rounded-xl font-medium text-sm transition-all duration-200 shadow-md shadow-violet-500/20"
+                >
+                  <Sparkles size={14} /> Digest a paper
+                </button>
+                <button
+                  onClick={() => handleChangeView('search')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium text-sm transition-all duration-150"
+                >
+                  <BookOpen size={14} /> Search online
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
