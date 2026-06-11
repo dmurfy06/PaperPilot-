@@ -757,9 +757,7 @@ export function Sidebar({
 
         <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
           {/* Display ad — free users only (AdSlot returns null for Pro) */}
-          {!isPro && (
-            <AdSlot slot="0000000000" isPro={isPro} className="mb-1" minHeight={100} />
-          )}
+          {!isPro && <AdSlot slot="0000000000" isPro={isPro} />}
 
           {/* Paper count indicator */}
           {paperLimit !== null && (

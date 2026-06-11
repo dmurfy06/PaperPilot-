@@ -17,7 +17,10 @@ interface AdSlotProps {
   responsive?: boolean;
   /** Wrapper classes for spacing/sizing around the unit. */
   className?: string;
-  /** Optional minimum height so layout doesn't jump before the ad loads. */
+  /**
+   * Reserved height for the unit. Defaults to 0 so an empty/unfilled slot
+   * leaves no gap; a served ad expands the responsive unit on its own.
+   */
   minHeight?: number;
 }
 
@@ -37,7 +40,7 @@ export function AdSlot({
   format = 'auto',
   responsive = true,
   className = '',
-  minHeight = 90,
+  minHeight = 0,
 }: AdSlotProps) {
   const pushed = useRef(false);
 
@@ -60,7 +63,7 @@ export function AdSlot({
       return (
         <div
           className={`flex items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-white/10 text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-600 ${className}`}
-          style={{ minHeight }}
+          style={{ minHeight: Math.max(minHeight, 60) }}
         >
           Ad slot ({slot})
         </div>
@@ -69,16 +72,17 @@ export function AdSlot({
     return null;
   }
 
+  // Classes go on the <ins> itself (not a wrapper) so the global
+  // `[data-ad-status='unfilled'] { display:none }` rule collapses the unit
+  // and its margins entirely when no ad is served.
   return (
-    <div className={className}>
-      <ins
-        className="adsbygoogle"
-        style={{ display: 'block', minHeight }}
-        data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={slot}
-        data-ad-format={format}
-        data-full-width-responsive={responsive ? 'true' : 'false'}
-      />
-    </div>
+    <ins
+      className={`adsbygoogle block ${className}`}
+      style={{ minHeight: minHeight || undefined }}
+      data-ad-client={ADSENSE_CLIENT}
+      data-ad-slot={slot}
+      data-ad-format={format}
+      data-full-width-responsive={responsive ? 'true' : 'false'}
+    />
   );
 }

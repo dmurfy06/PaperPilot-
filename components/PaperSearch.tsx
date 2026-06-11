@@ -162,7 +162,7 @@ export function PaperSearch({ onDigest, onSave, isBusy, isPro }: PaperSearchProp
       {results !== null && !searching && (
         <>
           {results.length > 0 && !isPro && (
-            <AdSlot slot="2222222222" isPro={isPro} className="mb-5" minHeight={90} />
+            <AdSlot slot="2222222222" isPro={isPro} className="mb-5" />
           )}
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -182,7 +182,7 @@ export function PaperSearch({ onDigest, onSave, isBusy, isPro }: PaperSearchProp
               <Fragment key={result.id}>
               {/* In-feed ad after the third result (free users only) */}
               {i === 3 && !isPro && (
-                <AdSlot slot="1111111111" isPro={isPro} className="my-1" minHeight={120} />
+                <AdSlot slot="1111111111" isPro={isPro} className="my-1" />
               )}
               <div
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors"

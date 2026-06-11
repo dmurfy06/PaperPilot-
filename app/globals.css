@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Collapse AdSense units that have no ad to show (e.g. before account
+   approval, or when a slot goes unfilled) so they don't leave a blank gap. */
+ins.adsbygoogle[data-ad-status='unfilled'] {
+  display: none !important;
+}
+
 @layer base {
   :root {
     --font-inter: 'Inter', sans-serif;
