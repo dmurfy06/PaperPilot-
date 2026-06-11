@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, LogOut, FileText, Sun, Moon, Pencil, Trash2, Check, X,
   ChevronDown, ChevronRight, FolderOpen, FolderPlus, Folder, GripVertical, Sparkles, Settings, Info,
-  Globe, Library,
+  Globe, Library, ShieldCheck,
 } from 'lucide-react';
 import {
   DndContext,
@@ -27,6 +27,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Logo } from '@/components/Logo';
+import { AdSlot } from '@/components/AdSlot';
 import type { User } from '@supabase/supabase-js';
 import { Paper, Folder as FolderType } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
@@ -755,6 +756,11 @@ export function Sidebar({
         )}
 
         <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
+          {/* Display ad — free users only (AdSlot returns null for Pro) */}
+          {!isPro && (
+            <AdSlot slot="0000000000" isPro={isPro} className="mb-1" minHeight={100} />
+          )}
+
           {/* Paper count indicator */}
           {paperLimit !== null && (
             <div className="px-3 py-2 rounded-xl bg-white/[0.04] space-y-1.5">
@@ -824,6 +830,16 @@ export function Sidebar({
             <Info size={14} className="flex-shrink-0" />
             <span>About Scigestible</span>
           </button>
+
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-150 text-xs font-medium"
+          >
+            <ShieldCheck size={14} className="flex-shrink-0" />
+            <span>Privacy Policy</span>
+          </a>
 
           <div className="flex items-center gap-2 px-1">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0">

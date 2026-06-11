@@ -535,7 +535,7 @@ export default function Home() {
               </button>
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scigestible</span>
             </div>
-            <PaperSearch onDigest={handleImportFromSearch} onSave={handleSaveFromSearch} isBusy={isAnalyzing} />
+            <PaperSearch onDigest={handleImportFromSearch} onSave={handleSaveFromSearch} isBusy={isAnalyzing} isPro={isPro} />
           </div>
         ) : activeView === 'digest' ? (
           <div className="flex-1 overflow-y-auto flex flex-col">
